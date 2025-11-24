@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RIDE2U - Plataforma</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+  <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+
+  <style>
+    :root{
+      --card-bg: rgba(255,255,255,0.92);
+      --muted: #6b7280;
+      --accent: #1e2a5a;
+    }
+
+    /* Base */
+    html,body{height:100%;}
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      /* Fondo de ciudad (Medellín estilo nocturno). Si quieres otra ciudad cambia la URL abajo) */
+      background-image: url("https://images.unsplash.com/photo-1504384308090-c894fdcc538d?auto=format&fit=crop&w=1600&q=80");
+      background-size: cover;
+      background-position: center center;
+      background-attachment: fixed;
+      color: #111827;
+    }
+
+    /* Oscurecer fondo para legibilidad */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55));
+      z-index: -1;
+    }
+
+    /* HERO tipo Uber — texto grande blanco con sombra */
+    .hero {
+      position: relative;
+      width: 100%;
+      height: 78vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 1;
+      backdrop-filter: blur(2px);
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      text-align: center;
+      color: #fff;
+      padding: 20px;
+      max-width: 980px;
+    }
+
+    .hero-content h1 {
+      font-size: clamp(2.4rem, 6vw, 4.5rem);
+      margin: 0 0 8px 0;
+      font-weight: 800;
+      letter-spacing: 2px;
+      text-shadow: 0 6px 22px rgba(0,0,0,0.7);
+    }
+
+    .hero-content p {
+      font-size: clamp(1rem, 2vw, 1.25rem);
+      margin: 0;
+      text-shadow: 0 4px 12px rgba(0,0,0,0.6);
+    }
+
+    /* NAV */
+    nav {
+      display:flex;
+      gap:8px;
+      justify-content:center;
+      flex-wrap:wrap;
+      padding: 14px;
+      margin: 14px auto;
+      max-width:1100px;
+      z-index: 3;
+    }
+
+    nav a{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+      padding:10px 14px;
+      border-radius:10px;
+      text-decoration:none;
+      font-weight:600;
+      transition: transform .12s ease, background .12s;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    }
+
+    nav a:hover{ transform: translateY(-3px); background: rgba(255,255,255,0.12);} 
+
+    /* Secciones con fondo claro para máxima legibilidad */
+    section{
+      max-width:1100px;
+      margin: 20px auto;
+      background: var(--card-bg);
+      border-radius:14px;
+      padding: 28px;
+      box-shadow: 0 8px 28px rgba(2,6,23,0.18);
+      color: #0f172a;
+    }
+
+    h2{ color: var(--accent); margin-top:0; }
+    p, li, label{ color: #111827; }
+
+    /* Mapa y tarjetas */
+    #map{ height:360px; border-radius:12px; overflow:hidden; }
+
+    .grid{ display:grid; grid-template-columns: repeat(auto-fit,minmax(260px,1fr)); gap:18px; }
+
+    .driver-card{ background: #fff; border-radius:12px; padding:14px; box-shadow: 0 6px 18px rgba(2,6,23,0.08);} 
+
+    .driver-card img{ width:100%; height:160px; object-fit:cover; border-radius:8px; }
+
+    input, select, textarea{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid rgba(15,23,42,0.06); background:#fff; color:#0f172a; font-weight:600; }
+
+    .btn{ background:var(--accent); color:#fff; padding:10px 16px; border-radius:10px; border:none; font-weight:800; cursor:pointer; }
+
+    /* Form section special */
+    .form-section{ text-align:center; padding:34px; }
+    .form-button{ display:inline-block; padding:12px 20px; background:#ff7a59; color:#fff; border-radius:10px; text-decoration:none; font-weight:700; }
+
+    @media (max-width:700px){
+      .hero{height:56vh}
+      .hero-content h1{font-size:2rem}
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="overlay"></div>
+    <div class="hero-content">
+      <!-- Logo: si lo prefieres puedes sustituir por tu imagen en /mnt/data -->
+      <img src="/mnt/data/718850dd-1848-4a92-8981-7fd919989b32.png" alt="Ride2U" style="width:140px;margin-bottom:12px;filter:drop-shadow(0 6px 18px rgba(0,0,0,0.6));border-radius:6px;"/>
+      <h1>RIDE2U — Movilidad Inteligente</h1>
+      <p>Rutas compartidas, tarifas justas y menor huella ambiental — optimizado para la vida universitaria.</p>
+    </div>
+  </header>
+
+  <nav>
+    <a href="#inicio">🚗 Inicio</a>
+    <a href="#costo">📍 Calcula tu costo</a>
+    <a href="#beneficios">⭐ Beneficios</a>
+    <a href="#usuarios">👥 Usuarios</a>
+    <a href="#conductores">🧑‍✈️ Conductores</a>
+    <a href="https://forms.gle/2PLTBVT17iTepGoj8" target="_blank">📝 Formulario</a>
+  </nav>
+
+  <section id="formulario" class="form-section">
+    <h2>Queremos saber de ti</h2>
+    <p>Para hacer tu registro, llena el siguiente formulario:</p>
+    <a class="form-button" href="https://forms.gle/2PLTBVT17iTepGoj8" target="_blank">✨ Ir al Formulario</a>
+  </section>
+
+  <section id="inicio">
+    <h2>Bienvenido a EcoRuta IA</h2>
+    <p>Optimiza tu transporte universitario con rutas inteligentes y economía colaborativa.</p>
+  </section>
+
+  <section id="costo">
+    <h2>Calcula tu costo</h2>
+    <p>Selecciona dos puntos en el mapa para calcular tu ruta y tarifa dinámica.</p>
+    <div id="map"></div>
+    <h3>Resultado</h3>
+    <p><strong>Distancia:</strong> <span id="distancia">--</span> km</p>
+    <p><strong>Costo Estudiantil:</strong> $<span id="costoVal">--</span></p>
+  </section>
+
+  <section id="beneficios">
+    <h2>Beneficios para estudiantes</h2>
+    <ul>
+      <li>Tarifas dinámicas más económicas en trayectos largos</li>
+      <li>Rutas compartidas</li>
+      <li>Conductores verificados</li>
+      <li>Menor huella ambiental</li>
+    </ul>
+  </section>
+
+  <section id="usuarios">
+    <h2>Registro de Usuarios (Estudiantes)</h2>
+    <form id="userForm">
+      <label>Nombre completo</label>
+      <input type="text" id="userName" required />
+
+      <label>Correo institucional</label>
+      <input type="email" id="userEmail" required />
+
+      <label>Programa académico</label>
+      <input type="text" id="userProgram" required />
+
+      <button class="btn" type="submit">Registrar Usuario</button>
+    </form>
+
+    <h3 style="margin-top:30px;">Usuarios Registrados</h3>
+    <div id="userList" class="grid"></div>
+  </section>
+
+  <section id="conductores">
+    <h2>Conductores Registrados</h2>
+    <h3>Registrar Conductor</h3>
+    <form id="driverForm">
+      <label>Nombre completo</label>
+      <input type="text" id="driverName" required />
+
+      <label>Placa</label>
+      <input type="text" id="driverPlate" required />
+
+      <label>Programa</label>
+      <input type="text" id="driverProgram" required />
+
+      <label>URL Fotografía</label>
+      <input type="url" id="driverPhoto" required />
+
+      <button class="btn" type="submit">Registrar</button>
+    </form>
+
+    <h3 style="margin-top:30px;">Listado</h3>
+    <div id="driverList" class="grid"></div>
+  </section>
+
+<script>
+// MAPA
+let map = L.map('map').setView([6.082, -75.336], 14);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {}).addTo(map);
+
+let puntos = [];
+let control = null;
+
+map.on('click', function(e) {
+  puntos.push(e.latlng);
+
+  if (puntos.length === 2) {
+    if (control) map.removeControl(control);
+
+    control = L.Routing.control({
+      waypoints: [puntos[0], puntos[1]],
+      lineOptions: { addWaypoints: false }
+    })
+    .on('routesfound', function(e) {
+      let distanciaKm = (e.routes[0].summary.totalDistance / 1000).toFixed(2);
+      document.getElementById('distancia').innerText = distanciaKm;
+
+      let d = parseFloat(distanciaKm);
+      let tarifa = 0;
+
+      if (d < 3) tarifa = d * 700;
+      else if (d < 8) tarifa = d * 600;
+      else tarifa = d * 500;
+
+      document.getElementById('costoVal').innerText = tarifa.toFixed(0);(0);(0);
+    })
+    .addTo(map);
+
+    puntos = [];
+  }
+});
+
+// USUARIOS
+function loadUsers() {
+  let list = JSON.parse(localStorage.getItem('users') || '[]');
+  const cont = document.getElementById('userList');
+  cont.innerHTML = '';
+
+  list.forEach((u, i) => {
+    cont.innerHTML += `
+      <div class="driver-card">
+        <h4>${u.name}</h4>
+        <p><strong>Correo:</strong> ${u.email}</p>
+        <p><strong>Programa:</strong> ${u.program}</p>
+        <button class="btn" onclick="deleteUser(${i})">Eliminar</button>
+      </div>`;
+  });
+}
+
+function deleteUser(i) {
+  let list = JSON.parse(localStorage.getItem('users') || '[]');
+  list.splice(i, 1);
+  localStorage.setItem('users', JSON.stringify(list));
+  loadUsers();
+}
+
+document.getElementById('userForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+
+  let user = {
+    name: userName.value,
+    email: userEmail.value,
+    program: userProgram.value,
+  };
+
+  let list = JSON.parse(localStorage.getItem('users') || '[]');
+  list.push(user);
+  localStorage.setItem('users', JSON.stringify(list));
+
+  this.reset();
+  loadUsers();
+});
+
+loadUsers();
+
+// CONDUCTORES
+function loadDrivers() {
+  let list = JSON.parse(localStorage.getItem('drivers') || '[]');
+  const cont = document.getElementById('driverList');
+  cont.innerHTML = '';
+
+  list.forEach((d, i) => {
+    cont.innerHTML += `
+      <div class="driver-card">
+        <img src="${d.photo}" />
+        <h4>${d.name}</h4>
+        <p><strong>Placa:</strong> ${d.plate}</p>
+        <p><strong>Programa:</strong> ${d.program}</p>
+        <button class="btn" onclick="deleteDriver(${i})">Eliminar</button>
+      </div>`;
+  });
+}
+
+function deleteDriver(i) {
+  let list = JSON.parse(localStorage.getItem('drivers') || '[]');
+  list.splice(i, 1);
+  localStorage.setItem('drivers', JSON.stringify(list));
+  loadDrivers();
+}
+
+document.getElementById('driverForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+
+  let driver = {
+    name: driverName.value,
+    plate: driverPlate.value,
+    program: driverProgram.value,
+    photo: driverPhoto.value,
+  };
+
+  let list = JSON.parse(localStorage.getItem('drivers') || '[]');
+  list.push(driver);
+  localStorage.setItem('drivers', JSON.stringify(list));
+
+  this.reset();
+  loadDrivers();
+});
+
+loadDrivers();
+</script>
+</body>
+</html>
